@@ -2,14 +2,12 @@
 
 ¡Impulsa tu carrera tech aprendiendo inglés técnico! Este bot de Telegram actúa como un asistente inteligente diseñado para enseñar vocabulario, conceptos y pronunciación en áreas críticas como **Ciberseguridad, Ingeniería de Sistemas y Negocios**.
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python)
-![Telegram](https://img.shields.io/badge/Telegram_Bot-API-blue?style=for-the-badge&logo=telegram)
-![Groq](https://img.shields.io/badge/Groq_AI-Llama3-orange?style=for-the-badge&logo=openai)
-![Render](https://img.shields.io/badge/Render-Hosted-black?style=for-the-badge&logo=render)
+![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python) ![Telegram](https://img.shields.io/badge/Telegram_Bot-API-blue?style=for-the-badge&logo=telegram) ![Groq](https://img.shields.io/badge/Groq_AI-Llama3-orange?style=for-the-badge&logo=openai) ![Render](https://img.shields.io/badge/Render-Hosted-black?style=for-the-badge&logo=render)
 
 ---
 
 ## 🚀 Características Clave
+
 * **Aprendizaje On-Demand:** Solicita vocabulario técnico en tiempo real impulsado por IA de baja latencia.
 * **Retención Activa Automática:** Sistema programado (`threading`) para el envío diario automatizado de la *Palabra IT del día* a todos los usuarios suscritos.
 * **Persistencia Local:** Gestión eficiente de bases de datos de usuarios (`JSON State Management`) sin almacenamiento innecesario de datos sensibles.
@@ -28,6 +26,7 @@ Este proyecto fue estructurado bajo estrictos estándares del **Ciclo de Vida de
 ---
 
 ## 🛠️ Tecnologías Utilizadas
+
 * **Lenguaje:** Python 3
 * **Librería Principal:** `pyTelegramBotAPI`
 * **Motor de IA:** Groq API SDK (`llama3-8b-8000`)
