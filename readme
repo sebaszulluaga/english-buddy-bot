@@ -1,8 +1,35 @@
-## 🔒 Security Architecture & Best Practices
+# 🤖 SysEng English Buddy | AI Technical English Tutor
 
-This project was built following standard Secure Software Development Lifecycle (SSDLC) practices:
+¡Impulsa tu carrera tech aprendiendo inglés técnico! Este bot de Telegram actúa como un asistente inteligente diseñado para enseñar vocabulario, conceptos y pronunciación en áreas críticas como **Ciberseguridad, Ingeniería de Sistemas y Negocios**.
 
-1. **Secrets Management:** Critical infrastructure credentials (Telegram API keys, Groq tokens) are strictly managed via environment variables. The codebase uses `python-dotenv` to fetch tokens at runtime, preventing accidental hardcoding of secrets. A strict `.gitignore` policy ensures local credential files are never leaked to public version control.
-2. **Data Minimization:** To protect user privacy, the application logs zero personally identifiable information (PII). User profiles (language level, career tracks) are mapped strictly to randomized Telegram `chat_id` primitives, avoiding any collection of usernames, names, or chat history databases.
-3. **Encrypted Ingestion:** All communications to and from Telegram and the Groq AI servers are forced over encrypted HTTPS / TLS endpoints, preventing Man-in-the-Middle (MitM) attacks on student queries.
-4. **Input Sanitization Readiness:** User text inputs are passed as variables directly inside structured payloads to the LLM backend rather than being executed as raw shell strings, eliminating systemic command injection vulnerabilities.
+![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python)
+![Telegram](https://img.shields.io/badge/Telegram_Bot-API-blue?style=for-the-badge&logo=telegram)
+![Groq](https://img.shields.io/badge/Groq_AI-Llama3-orange?style=for-the-badge&logo=openai)
+![Render](https://img.shields.io/badge/Render-Hosted-black?style=for-the-badge&logo=render)
+
+---
+
+## 🚀 Características Clave
+* **Aprendizaje On-Demand:** Solicita vocabulario técnico en tiempo real impulsado por IA de baja latencia.
+* **Retención Activa Automática:** Sistema programado (`threading`) para el envío diario automatizado de la *Palabra IT del día* a todos los usuarios suscritos.
+* **Persistencia Local:** Gestión eficiente de bases de datos de usuarios (`JSON State Management`) sin almacenamiento innecesario de datos sensibles.
+
+---
+
+## 🔒 Arquitectura de Seguridad y Buenas Prácticas (SSDLC)
+
+Este proyecto fue estructurado bajo estrictos estándares del **Ciclo de Vida de Desarrollo de Software Seguro (SSDLC)**:
+
+1. **Gestión de Secretos:** Las credenciales críticas (Telegram Tokens, Groq API Keys) se administran estrictamente mediante variables de entorno a través de `python-dotenv`. Políticas rigurosas en `.gitignore` garantizan cero filtraciones en el control de versiones.
+2. **Minimización de Datos:** En cumplimiento de la privacidad del usuario, la aplicación registra cero Información de Identificación Personal (PII). Los perfiles se mapean únicamente usando primitivas aleatorias de `chat_id` de Telegram.
+3. **Ingesta Encriptada:** Todas las conexiones con la API de Telegram y los servidores de IA de Groq se fuerzan mediante endpoints encriptados HTTPS/TLS, mitigando ataques Man-in-the-Middle (MitM).
+4. **Sanitización de Inputs:** Los inputs de los usuarios se procesan como variables dentro de cargas útiles estructuradas hacia el backend del LLM, bloqueando vulnerabilidades de inyección de comandos.
+
+---
+
+## 🛠️ Tecnologías Utilizadas
+* **Lenguaje:** Python 3
+* **Librería Principal:** `pyTelegramBotAPI`
+* **Motor de IA:** Groq API SDK (`llama3-8b-8000`)
+* **Despliegue & DevOps:** Render (Configurado en entorno continuo con *Virtual Port Binding*)
+* **Automatización:** `cron-job.org` para mantener persistencia activa 24/7.
