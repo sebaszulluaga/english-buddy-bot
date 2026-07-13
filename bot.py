@@ -53,7 +53,7 @@ PALABRAS_POOL = {
         {"word": "Deliverable", "pron": "di-li-ver-a-bol", "trad": "Entregable", "def": "Cualquier producto, resultado o documento que deba entregarse para finalizar una etapa.", "ex": "The source code is the main deliverable today.", "ex_trad": "El código fuente es el entregable principal hoy."},
         {"word": "KPI", "pron": "kei-pi-ai", "trad": "Indicador clave de rendimiento", "def": "Métrica cuantitativa que mide el nivel de desempeño y éxito de un proceso.", "ex": "Customer retention is our main KPI this year.", "ex_trad": "La retención de clientes es nuestro indicador clave principal este año."}
     ],
-    "ingeneria": [
+    "ingenieria": [
         {"word": "Pipeline", "pron": "pai-plain", "trad": "Línea de procesos automatizados", "def": "Cadena de procesos automatizados para compilar, probar y desplegar código (CI/CD).", "ex": "The CI/CD pipeline failed during testing.", "ex_trad": "La línea de procesos automatizados falló durante las pruebas."},
         {"word": "API", "pron": "ei-pi-ai", "trad": "Interfaz de Programación de Aplicaciones", "def": "Set de reglas y definiciones que permite que dos aplicaciones interactúen entre sí.", "ex": "We connect to the payment gateway via API.", "ex_trad": "Nos conectamos a la pasarela de pagos mediante una API."},
         {"word": "Middleware", "pron": "mi-del-uer", "trad": "Software de capa intermedia", "def": "Capa de software que conecta diferentes aplicaciones o bases de datos para intercambiar datos.", "ex": "The middleware handles authentication logs.", "ex_trad": "El software de capa intermedia maneja los registros de autenticación."},
@@ -65,6 +65,9 @@ PALABRAS_POOL = {
         {"word": "Overhead", "pron": "ou-ver-jed", "trad": "Sobrecarga de procesamiento", "def": "Tiempo o recursos excesivos consumidos por el sistema para ejecutar tareas de control.", "ex": "Too many microservices can increase network overhead.", "ex_trad": "Demasiados microservicios pueden incrementar la sobrecarga de la red."}
     ]
 }
+
+# Clonar mapeos para evitar problemas por errores de dedo en los callbacks (ingeneria vs ingenieria)
+PALABRAS_POOL["ingeneria"] = PALABRAS_POOL["ingenieria"]
 
 # ==========================================
 # 💾 GESTIÓN INTEGRAL DE USUARIOS E HISTORIAL
@@ -92,6 +95,9 @@ def save_user_data(user_id, area=None, word_seen=None):
         users[user_id_str]["history"] = []
         
     if area is not None:
+        # Forzar unificación del término de ingeniería
+        if "ing" in area.lower():
+            area = "ingenieria"
         users[user_id_str]["area"] = area
         
     if word_seen is not None and word_seen not in users[user_id_str]["history"]:
@@ -111,14 +117,14 @@ def get_word_by_area(user_id, area):
     user_info = get_user_info(user_id)
     history = user_info.get("history", [])
     
-    # Normalizar área por si acaso
+    # Normalizar el área para evitar fallos de mapeo
+    if "ing" in area.lower():
+        area = "ingenieria"
     if area not in PALABRAS_POOL:
-        area = "ingeneria"
+        area = "ingenieria"
         
-    # Convertir el historial a una cadena de texto para decírselo a Groq
     palabras_vistas = ", ".join(history) if history else "ninguna"
     
-    # Definir los filtros de contexto para el Prompt
     if area == "ciberseguridad":
         enfoque_tecnico = "ciberseguridad, hacking ético, análisis SOC, firewalls o criptografía"
     elif area == "negocios":
@@ -145,34 +151,31 @@ def get_word_by_area(user_id, area):
             
             chat_completion = groq_client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model="llama3-8b-8000",
+                model="llama-3.1-8b-instant",  # <--- MODELO OFICIAL CORREGIDO (Evita error 404)
                 temperature=0.9
             )
             
             respuesta_ia = chat_completion.choices[0].message.content
             
             # Intentar extraer la palabra generada para guardarla en el historial
-            # Buscamos la línea que tiene 'Word of the Day:'
             try:
                 linea_palabra = [line for line in respuesta_ia.split('\n') if "Word of the Day:" in line][0]
                 palabra_detectada = linea_palabra.split('*Word of the Day:*')[1].split('(')[0].strip()
                 save_user_data(user_id, word_seen=palabra_detectada)
             except:
-                # Si el formato cambia un poco, guardamos un token genérico para que cuente en el historial
                 save_user_data(user_id, word_seen=f"ia_word_{seed_random}")
                 
             print(f"✨ Palabra generada exitosamente con Groq para {area}")
             return respuesta_ia
 
         except Exception as e:
-            print(f"⚠️ Groq falló o dio timeout ({e}). Activando respaldo local...")
+            print(f"❌ Groq falló o dio error ({e}). Activando respaldo local...")
 
     # --- INTENTO 2: RESPALDO LOCAL (Si Groq falla) ---
     pool_disponible = PALABRAS_POOL[area]
     palabras_nuevas = [p for p in pool_disponible if p["word"].lower() not in [w.lower() for w in history]]
     
     if not palabras_nuevas:
-        # Reiniciar historial si ya vio todas las del pool local
         users = load_users()
         if str(user_id) in users:
             users[str(user_id)]["history"] = []
@@ -184,7 +187,7 @@ def get_word_by_area(user_id, area):
     save_user_data(user_id, word_seen=item_elegido["word"])
     
     formato_local = (
-        f"💡 *Word of the Day:* {item_elegido['word']} ({item_elegido['pron']}) [Local Pool] 🛡️\n\n"
+        f"💡 *Word of the Day:* {item_elegido['word']} ({item_elegido['pron']}) [Respaldo] 🛡️\n\n"
         f"🔹 *Traducción:* {item_elegido['trad']}\n"
         f"🔹 *Definición:* {item_elegido['def']}\n"
         f"🔹 *Ejemplo:* _{item_elegido['ex']}_\n"
@@ -203,7 +206,7 @@ def daily_scheduler():
             if users:
                 for user_id_str, user_info in users.items():
                     try:
-                        user_area = user_info.get("area", "ingeneria") or "ingeneria"
+                        user_area = user_info.get("area", "ingenieria") or "ingenieria"
                         word_content = get_word_by_area(int(user_id_str), user_area)
                         word_message = f"🌅 *¡Good morning! Tu palabra técnica recomendada para {user_area.upper()}:* \n\n" + word_content
                         bot.send_message(int(user_id_str), word_message, parse_mode="Markdown")
@@ -253,7 +256,7 @@ def send_welcome(message):
         desplegar_menu_areas(user_id, "📚 *Para empezar, selecciona tu área de especialización técnica:*")
 
 
-# 💥 EL MANEJADOR INTELIGENTE DE PALABRAS AL AZAR SIN REPETICIÓN
+# Manejador principal de palabras directas
 @bot.message_handler(func=lambda message: message.text == "🧠 Get a New Word Now")
 def handle_word_request(message):
     chat_id = message.chat.id
@@ -266,7 +269,6 @@ def handle_word_request(message):
         
     bot.send_chat_action(chat_id, 'typing')
     
-    # Llamar a la función que saca una palabra al azar y valida el historial
     word_content = get_word_by_area(chat_id, area_guardada)
     
     encabezado = f"🎯 *Vocabulario de hoy enfocado en: {area_guardada.capitalize()}*\n\n"
@@ -283,11 +285,9 @@ def process_area_setting(call):
     nueva_area = call.data.split("_")[1]
     chat_id = call.message.chat.id
     
-    # Registrar el área manteniendo intacto el historial anterior
     save_user_data(chat_id, area=nueva_area)
     
     bot.answer_callback_query(call.id, text=f"Perfil configurado: {nueva_area.capitalize()}")
-    
     bot.send_message(chat_id, f"✅ ¡Área configurada con éxito en: *{nueva_area.capitalize()}*!\nDe ahora en adelante recibirás palabras directas de este nicho.", parse_mode="Markdown")
     
     bot.send_chat_action(chat_id, 'typing')
@@ -295,5 +295,5 @@ def process_area_setting(call):
     bot.send_message(chat_id, f"🎯 *Aquí tienes tu primera palabra:* \n\n" + word_content, parse_mode="Markdown")
 
 
-print("🤖 Bot corriendo en modo híbrido infalible (Pool Local + Anti-Repetición por Usuario)...")
+print("🤖 Bot corriendo en modo híbrido corregido (IA Llama 3.1 + Pool Local Anti-Repetición)...")
 bot.infinity_polling()
