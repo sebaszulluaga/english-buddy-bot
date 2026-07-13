@@ -1,0 +1,8 @@
+## 🔒 Security Architecture & Best Practices
+
+This project was built following standard Secure Software Development Lifecycle (SSDLC) practices:
+
+1. **Secrets Management:** Critical infrastructure credentials (Telegram API keys, Groq tokens) are strictly managed via environment variables. The codebase uses `python-dotenv` to fetch tokens at runtime, preventing accidental hardcoding of secrets. A strict `.gitignore` policy ensures local credential files are never leaked to public version control.
+2. **Data Minimization:** To protect user privacy, the application logs zero personally identifiable information (PII). User profiles (language level, career tracks) are mapped strictly to randomized Telegram `chat_id` primitives, avoiding any collection of usernames, names, or chat history databases.
+3. **Encrypted Ingestion:** All communications to and from Telegram and the Groq AI servers are forced over encrypted HTTPS / TLS endpoints, preventing Man-in-the-Middle (MitM) attacks on student queries.
+4. **Input Sanitization Readiness:** User text inputs are passed as variables directly inside structured payloads to the LLM backend rather than being executed as raw shell strings, eliminating systemic command injection vulnerabilities.
