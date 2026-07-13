@@ -58,52 +58,51 @@ def get_user_area(user_id):
 # Función optimizada con prompts estrictos para evitar repeticiones
 def get_word_by_area(area):
     try:
+        # Forzar un número aleatorio para que la IA no recicle respuestas de caché
         seed_random = random.randint(1, 99999)
         
-        # Diccionario de contextos técnicos ultra-específicos para evitar cruces de palabras
-        contextos = {
-            "ciberseguridad": {
-                "enfoque": "ciberseguridad estricta, hacking ético, análisis SOC, firewalls, criptografía, malware o respuesta a incidentes",
-                "ejemplo": "amenaza, vulnerabilidad, SIEM, exploit, phishing, ransomware o descifrado",
-                "fallback": "🔹 *Word: Phishing* (fi-shing)\n\nTraducción: Suplantación de identidad"
-            },
-            "negocios": {
-                "enfoque": "metodologías ágiles (Scrum/Kanban), KPIs de negocio tech, gestión de proyectos de TI, startups o Product Ownership",
-                "ejemplo": "stakeholders, backlog, sprint, ROI, MVP, roadmap o burndown chart",
-                "fallback": "🔹 *Word: Stakeholder* (steik-joul-der)\n\nTraducción: Parte interesada"
-            },
-            "ingeneria": {
-                "enfoque": "ingeniería de software pura, arquitectura de sistemas, backend, redes, devops, bases de datos o cloud computing",
-                "ejemplo": "API, middleware, microservicios, indexación, debugging, refactorización o dockerización",
-                "fallback": "🔹 *Word: Middleware* (mi-del-uer)\n\nTraducción: Software de capa intermedia"
-            }
-        }
-        
-        # Si por alguna razón el área es genérica o vacía
-        ctx = contextos.get(area, contextos["ingeneria"])
+        # Filtros estrictos por área para Groq
+        if area == "ciberseguridad":
+            enfoque_tecnico = "ciberseguridad, hacking ético, análisis SOC, firewalls o criptografía"
+            ejemplos = "SIEM, Phishing, Ransomware, Exploit, Zero-day, Handshake, Pentesting o MFA"
+        elif area == "negocios":
+            enfoque_tecnico = "metodologías ágiles, KPIs de TI, gestión de proyectos de software o producto"
+            ejemplos = "Stakeholder, Backlog, Sprint, Roadmap, MVP, ROI, Scope creep o Deliverable"
+        else:
+            enfoque_tecnico = "ingeniería de software, devops, bases de datos, redes o cloud computing"
+            ejemplos = "API, Pipeline, Middleware, Docker, Kubernetes, Refactoring, Microservices o Query"
 
+        # Construcción limpia del prompt sin saltos de línea conflictivos en los f-strings
         prompt = (
-            f"Eres un profesor de inglés técnico especializado en TI. Genera una única 'Palabra IT del día' en inglés "
-            f"que sea EXCLUSIVA del área de: {ctx['enfoque']}. No uses palabras comunes de administración o desarrollo general.\n"
-            f"La palabra DEBE estar directamente relacionada con conceptos como: {ctx['ejemplo']}.\n"
-            f"Código único de variación en tiempo real: {seed_random}.\n\n"
-            "Formatea la respuesta en Markdown limpio empleando emojis y negritas:\n"
-            "1. La palabra en inglés (con su pronunciación figurada entre paréntesis).\n"
-            "2. Su traducción al español.\n"
-            "3. Una definición técnica concisa y profunda adaptada al nicho.\n"
-            "4. Un ejemplo de uso real en una frase en inglés técnico con su respectiva traducción."
+            f"Genera una 'Palabra IT del día' en inglés única y exclusiva para el área de {enfoque_tecnico}. "
+            f"Puedes inspirarte en conceptos como: {ejemplos}. ID único de variación: {seed_random}. "
+            "Formatea la respuesta usando negritas y emojis en Markdown exactamente con esta estructura:\n\n"
+            "💡 *Word of the Day:* [Palabra en inglés] ([Pronunciación en español entre paréntesis])\n\n"
+            "🔹 *Traducción:* [Traducción al español]\n"
+            "🔹 *Definición:* [Definición técnica breve y clara orientada al área]\n"
+            "🔹 *Ejemplo:* [Frase real y corporativa en inglés técnico]\n"
+            "🔹 *Traducción del ejemplo:* [Traducción de la frase al español]"
         )
         
         chat_completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model="llama3-8b-8000",
-            temperature=0.9,  # Alta creatividad para romper bucles de palabras repetidas
+            temperature=1.0  # Máxima creatividad para evitar palabras repetidas por completo
         )
-        return chat_completion.choices[0].message.content
-    except Exception as e:
-        print(f"Error en la llamada de Groq: {e}")
-        return ctx["fallback"]
+        
+        respuesta_ia = chat_completion.choices[0].message.content
+        return respuesta_ia
 
+    except Exception as e:
+        print(f"❌ Error en la llamada de Groq: {e}")
+        # Retornos de emergencia dinámicos por si falla la red o las credenciales
+        fallback_words = {
+            "ciberseguridad": "💡 *Word of the Day: Ransomware* (ran-som-uer)\n\n🔹 *Traducción:* Secuestro de datos\n🔹 *Definición:* Malware que cifra los archivos de la víctima exigiendo un pago.",
+            "negocios": "💡 *Word of the Day: Backlog* (bak-log)\n\n🔹 *Traducción:* Lista de tareas pendientes\n🔹 *Definición:* Acumulación de trabajo o requerimientos prioritarios por hacer.",
+            "ingeneria": "💡 *Word of the Day: API* (ei-pi-ai)\n\n🔹 *Traducción:* Interfaz de Programación de Aplicaciones\n🔹 *Definición:* Set de reglas que permite que dos softwares se comuniquen entre sí."
+        }
+        return fallback_words.get(area, fallback_words["ingeneria"])
+    
 # Scheduler diario matutino automático
 def daily_scheduler():
     while True:
