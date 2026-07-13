@@ -115,13 +115,64 @@ def get_word_by_area(user_id, area):
     if area not in PALABRAS_POOL:
         area = "ingeneria"
         
+    # Convertir el historial a una cadena de texto para decírselo a Groq
+    palabras_vistas = ", ".join(history) if history else "ninguna"
+    
+    # Definir los filtros de contexto para el Prompt
+    if area == "ciberseguridad":
+        enfoque_tecnico = "ciberseguridad, hacking ético, análisis SOC, firewalls o criptografía"
+    elif area == "negocios":
+        enfoque_tecnico = "metodologías ágiles, KPIs de TI, gestión de proyectos de software o producto"
+    else:
+        enfoque_tecnico = "ingeniería de software, devops, bases de datos, redes o cloud computing"
+
+    # --- INTENTO 1: LLAMAR A LA INTELIGENCIA ARTIFICIAL (GROQ) ---
+    if groq_client:
+        try:
+            seed_random = random.randint(1, 99999)
+            prompt = (
+                f"Eres un profesor de inglés técnico de TI. Genera una única 'Palabra IT del día' en inglés "
+                f"que sea EXCLUSIVA del área de: {enfoque_tecnico}.\n"
+                f"CRÍTICO: No repitas NINGUNA de estas palabras ya vistas por el usuario: [{palabras_vistas}].\n"
+                f"ID de variación única: {seed_random}.\n\n"
+                "Formatea la respuesta usando negritas y emojis en Markdown exactamente con esta estructura:\n\n"
+                "💡 *Word of the Day:* [Palabra] ([Pronunciación en español])\n\n"
+                "🔹 *Traducción:* [Traducción]\n"
+                "🔹 *Definición:* [Definición técnica clara]\n"
+                "🔹 *Ejemplo:* [Frase real corporativa en inglés técnico]\n"
+                "🔹 *Traducción del ejemplo:* [Traducción de la frase]"
+            )
+            
+            chat_completion = groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama3-8b-8000",
+                temperature=0.9
+            )
+            
+            respuesta_ia = chat_completion.choices[0].message.content
+            
+            # Intentar extraer la palabra generada para guardarla en el historial
+            # Buscamos la línea que tiene 'Word of the Day:'
+            try:
+                linea_palabra = [line for line in respuesta_ia.split('\n') if "Word of the Day:" in line][0]
+                palabra_detectada = linea_palabra.split('*Word of the Day:*')[1].split('(')[0].strip()
+                save_user_data(user_id, word_seen=palabra_detectada)
+            except:
+                # Si el formato cambia un poco, guardamos un token genérico para que cuente en el historial
+                save_user_data(user_id, word_seen=f"ia_word_{seed_random}")
+                
+            print(f"✨ Palabra generada exitosamente con Groq para {area}")
+            return respuesta_ia
+
+        except Exception as e:
+            print(f"⚠️ Groq falló o dio timeout ({e}). Activando respaldo local...")
+
+    # --- INTENTO 2: RESPALDO LOCAL (Si Groq falla) ---
     pool_disponible = PALABRAS_POOL[area]
-    # Filtrar palabras que el usuario NO haya visto todavía
     palabras_nuevas = [p for p in pool_disponible if p["word"].lower() not in [w.lower() for w in history]]
     
-    # 🚨 Si el usuario ya vio todas las palabras de esa área, limpiamos su historial para iniciar de nuevo
     if not palabras_nuevas:
-        print(f"🔄 Usuario {user_id} completó todo el vocabulario de {area}. Reiniciando historial.")
+        # Reiniciar historial si ya vio todas las del pool local
         users = load_users()
         if str(user_id) in users:
             users[str(user_id)]["history"] = []
@@ -129,22 +180,17 @@ def get_word_by_area(user_id, area):
                 json.dump(users, f, indent=4)
         palabras_nuevas = pool_disponible
 
-    # Selección aleatoria real garantizada
     item_elegido = random.choice(palabras_nuevas)
-    
-    # Registrar palabra en el historial del usuario para que nunca se repita
     save_user_data(user_id, word_seen=item_elegido["word"])
     
-    # Construcción visual impecable en Markdown
-    formato_final = (
-        f"💡 *Word of the Day:* {item_elegido['word']} ({item_elegido['pron']})\n\n"
+    formato_local = (
+        f"💡 *Word of the Day:* {item_elegido['word']} ({item_elegido['pron']}) [Local Pool] 🛡️\n\n"
         f"🔹 *Traducción:* {item_elegido['trad']}\n"
         f"🔹 *Definición:* {item_elegido['def']}\n"
         f"🔹 *Ejemplo:* _{item_elegido['ex']}_\n"
         f"🔹 *Traducción del ejemplo:* {item_elegido['ex_trad']}"
     )
-    return formato_final
-
+    return formato_local
 
 # ==========================================
 # 🔄 PROGRAMADOR Y RUTINAS AUTOMÁTICAS
