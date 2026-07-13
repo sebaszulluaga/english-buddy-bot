@@ -1,158 +1,119 @@
 import os
+import time
+import json
+import threading
+from datetime import datetime
 import telebot
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot import types
 from groq import Groq
 from dotenv import load_dotenv
 
-# 1. Load the secret tokens
+# 1. Cargar variables de entorno
 load_dotenv()
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+GROQ_API = os.getenv("GROQ_API_KEY")
 
-# 2. Configure the AI and Bot
-client = Groq(api_key=GROQ_API_KEY)
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+bot = telebot.TeleBot(TOKEN)
+groq_client = Groq(api_key=GROQ_API)
 
-# 🧠 3. THE MOCK DATABASE
-user_data = {}
+# Nombre del archivo para guardar a los usuarios suscritos
+USERS_FILE = "subscribed_users.json"
 
-# 🎛️ 4. THE MAIN BUTTON DASHBOARD
-def generate_main_dashboard():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("💡 Get a New Word"), KeyboardButton("⚙️ Change My Settings"))
-    return markup
+# Función para cargar usuarios registrados
+def load_users():
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
+    return []
 
-# ⚙️ 5. THE SETTINGS INLINE MENU (Now with LATAM Careers)
-def generate_settings_menu():
-    markup = InlineKeyboardMarkup()
-    markup.row_width = 3
-    markup.add(
-        InlineKeyboardButton("B1", callback_data="level_B1"),
-        InlineKeyboardButton("B2", callback_data="level_B2"),
-        InlineKeyboardButton("C1", callback_data="level_C1")
-    )
-    markup.row_width = 1 # One button per row for the careers to keep it clean
-    markup.add(
-        InlineKeyboardButton("📚 General English", callback_data="track_General"),
-        InlineKeyboardButton("💻 IT & Cybersecurity", callback_data="track_IT"),
-        InlineKeyboardButton("📊 Business Administration", callback_data="track_Business"),
-        InlineKeyboardButton("⚕️ Healthcare & Medicine", callback_data="track_Health"),
-        InlineKeyboardButton("🏗️ Engineering", callback_data="track_Engineering")
-    )
-    return markup
+# Función para guardar un nuevo usuario
+def save_user(user_id):
+    users = load_users()
+    if user_id not in users:
+        users.append(user_id)
+        with open(USERS_FILE, "w") as f:
+            json.dump(users, f)
+        print(f"🔹 Nuevo usuario registrado: {user_id}")
 
-# 6. Handle /start
-@bot.message_handler(commands=['start'])
+# Función para pedirle a la IA la palabra técnica del día
+def get_daily_word_from_ai():
+    try:
+        prompt = (
+            "Genera la 'Palabra IT del día' en inglés para profesionales de tecnología. "
+            "Formatea la respuesta de forma muy limpia y visual usando negritas y emojis en Markdown. "
+            "Debe incluir:\n"
+            "1. La palabra en inglés (con su pronunciación figurada entre paréntesis).\n"
+            "2. Su traducción al español.\n"
+            "3. Una definición técnica breve y clara.\n"
+            "4. Un ejemplo de uso real en una frase en inglés técnico con su traducción."
+        )
+        chat_completion = groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama3-8b-8000",
+        )
+        return chat_completion.choices[0].message.content
+    except Exception as e:
+        print(f"Error generando palabra de la IA: {e}")
+        return "💡 *Word of the Day: Deployment* (de-ploi-ment)\n\n🔹 *Traducción:* Despliegue\n🔹 *Definición:* El proceso de enviar código a un servidor en la nube para que esté disponible al público."
+
+# 2. Hilo secundario para el envío automático diario
+def daily_scheduler():
+    print("⏳ Programador diario activado en segundo plano...")
+    while True:
+        now = datetime.now()
+        # Puedes configurar aquí la hora exacta que prefieras (Ej: 08:30 AM)
+        # Por ahora lo configuramos para enviar el mensaje a las 08:00 AM todos los días
+        if now.hour == 8 and now.minute == 0:
+            users = load_users()
+            if users:
+                print(f"📢 Enviando palabra diaria a {len(users)} usuarios...")
+                word_message = "🌅 *¡Good morning! Aquí tienes tu palabra técnica del día:* \n\n" + get_daily_word_from_ai()
+                
+                for user_id in users:
+                    try:
+                        # parse_mode="Markdown" permite que se vean las negritas y emojis de la IA
+                        bot.send_message(user_id, word_message, parse_mode="Markdown")
+                    except Exception as e:
+                        print(f"No se pudo enviar mensaje al usuario {user_id}: {e}")
+            
+            # Dormir el hilo por 60 segundos para evitar que envíe el mensaje múltiples veces en el mismo minuto
+            time.sleep(60)
+        
+        # Revisar la hora del sistema cada 30 segundos
+        time.sleep(30)
+
+# Arrancar el programador en un hilo aparte para que no bloquee al bot de Telegram
+threading.Thread(target=daily_scheduler, daemon=True).start()
+
+
+# 3. Manejadores de comandos de Telegram
+@bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    chat_id = message.chat.id
-    if chat_id not in user_data:
-        user_data[chat_id] = {"level": "B2", "track": "General"}
+    user_id = message.chat.id
+    # Guardamos automáticamente al usuario en nuestra lista al dar /start
+    save_user(user_id)
+    
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn_word = types.KeyboardButton("🧠 Get a New Word Now")
+    markup.add(btn_word)
     
     welcome_text = (
-        "🤖 **Welcome to English Buddy Pro!**\n\n"
-        "Look at the bottom of your screen. Tap the buttons to control the bot—no typing required!"
+        f"¡Hola, *{message.from_user.first_name}*! 👋 Bienvenido a tu English Buddy Pro.\n\n"
+        "Te has suscrito automáticamente a las *notificaciones diarias*. Cada mañana te enviaré una "
+        "palabra técnica nueva para que nunca dejes de aprender. 🚀\n\n"
+        "Si no quieres esperar a mañana, puedes presionar el botón de abajo para aprender una palabra ahora mismo."
     )
-    bot.send_message(chat_id, welcome_text, reply_markup=generate_main_dashboard(), parse_mode="Markdown")
+    bot.send_message(user_id, welcome_text, reply_markup=markup, parse_mode="Markdown")
 
-# 7. Listen for the Button Text clicks
-@bot.message_handler(func=lambda message: True)
-def handle_text_or_buttons(message):
-    chat_id = message.chat.id
-    
-    if message.text == "💡 Get a New Word":
-        bot.send_chat_action(chat_id, 'typing')
-        prefs = user_data.get(chat_id, {"level": "B2", "track": "General"})
-        level = prefs["level"]
-        track = prefs["track"]
+@bot.message_handler(func=lambda message: message.text == "🧠 Get a New Word Now")
+def send_manual_word(message):
+    bot.send_chat_action(message.chat.id, 'typing')
+    word = get_daily_word_from_ai()
+    bot.send_message(message.chat.id, word, parse_mode="Markdown")
 
-        # UPGRADED SYSTEM INSTRUCTIONS: Translation and Pronunciation
-        system_instructions = f"You are an English teacher for a {level} level native Spanish speaker. "
-        
-        if track == "IT":
-            system_instructions += "Pick ONE practical vocabulary word heavily used in tech, software, or cybersecurity. "
-        elif track == "Business":
-            system_instructions += "Pick ONE practical vocabulary word heavily used in Business Administration, finance, or corporate offices. "
-        elif track == "Health":
-            system_instructions += "Pick ONE practical vocabulary word used in healthcare, medicine, or nursing. "
-        elif track == "Engineering":
-            system_instructions += "Pick ONE practical vocabulary word used in civil, mechanical, or industrial engineering. "
-        else:
-            system_instructions += "Pick ONE interesting, practical English word used in daily life. "
-
-        system_instructions += (
-            "Explain it simply, and provide a real-world example sentence. "
-            "Format your response exactly like this:\n"
-            "💡 **Word:** [Word]\n"
-            "📢 **Pronunciation:** [Simple phonetic spelling for a Spanish speaker to read]\n"
-            "🇪🇸 **Translation:** [Spanish translation]\n"
-            "📝 **Definition:** [Simple definition in English]\n"
-            "🗣️ **Example:** '[Example sentence in English]'\n"
-        )
-
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_instructions},
-                    {"role": "user", "content": "Give me a vocabulary word."}
-                ],
-                model="llama-3.1-8b-instant",
-            )
-            bot.reply_to(message, chat_completion.choices[0].message.content, parse_mode="Markdown")
-        except Exception as e:
-            bot.reply_to(message, "Oops! I couldn't think of a word right now.")
-        return
-
-    elif message.text == "⚙️ Change My Settings":
-        bot.send_message(chat_id, "Tap below to adjust your profile:", reply_markup=generate_settings_menu())
-        return
-
-    else:
-        bot.send_chat_action(chat_id, 'typing')
-        try:
-            chat_completion = client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a friendly English teacher. Correct any grammar mistakes gently and briefly in English, then reply to their message to keep the conversation going."
-                    },
-                    {"role": "user", "content": message.text}
-                ],
-                model="llama-3.1-8b-instant",
-            )
-            bot.reply_to(message, chat_completion.choices[0].message.content)
-        except Exception as e:
-            bot.reply_to(message, "Oops! My brain had a small glitch.")
-
-# 8. Handle Inline Button Clicks
-@bot.callback_query_handler(func=lambda call: True)
-def handle_inline_clicks(call):
-    chat_id = call.message.chat.id
-    if chat_id not in user_data:
-        user_data[chat_id] = {"level": "B2", "track": "General"}
-
-    if call.data.startswith("level_"):
-        new_level = call.data.split("_")[1]
-        user_data[chat_id]["level"] = new_level
-        bot.answer_callback_query(call.id, f"Level set to {new_level}")
-        bot.send_message(chat_id, f"✅ Level updated to **{new_level}**.", parse_mode="Markdown")
-        
-    elif call.data.startswith("track_"):
-        new_track = call.data.split("_")[1]
-        user_data[chat_id]["track"] = new_track
-        
-        # Clean up the name for the confirmation message
-        track_names = {
-            "General": "General English",
-            "IT": "IT & Cybersecurity",
-            "Business": "Business Administration",
-            "Health": "Healthcare & Medicine",
-            "Engineering": "Engineering"
-        }
-        track_name = track_names.get(new_track, new_track)
-        
-        bot.answer_callback_query(call.id, f"Track set to {track_name}")
-        bot.send_message(chat_id, f"✅ Track updated to **{track_name}**.", parse_mode="Markdown")
-
-# 9. Keep the program running
-print("🟢 English Buddy Pro is running! Press Ctrl+C to stop.")
+# Iniciar el bot
+print("🤖 Bot de Telegram corriendo con éxito...")
 bot.infinity_polling()
