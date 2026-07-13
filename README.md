@@ -22,13 +22,3 @@ Este proyecto fue estructurado bajo estrictos estándares del **Ciclo de Vida de
 2. **Minimización de Datos:** En cumplimiento de la privacidad del usuario, la aplicación registra cero Información de Identificación Personal (PII). Los perfiles se mapean únicamente usando primitivas aleatorias de `chat_id` de Telegram.
 3. **Ingesta Encriptada:** Todas las conexiones con la API de Telegram y los servidores de IA de Groq se fuerzan mediante endpoints encriptados HTTPS/TLS, mitigando ataques Man-in-the-Middle (MitM).
 4. **Sanitización de Inputs:** Los inputs de los usuarios se procesan como variables dentro de cargas útiles estructuradas hacia el backend del LLM, bloqueando vulnerabilidades de inyección de comandos.
-
----
-
-## 🛠️ Tecnologías Utilizadas
-
-* **Lenguaje:** Python 3
-* **Librería Principal:** `pyTelegramBotAPI`
-* **Motor de IA:** Groq API SDK (`llama3-8b-8000`)
-* **Despliegue & DevOps:** Render (Configurado en entorno continuo con *Virtual Port Binding*)
-* **Automatización:** `cron-job.org` para mantener persistencia activa 24/7.
